@@ -1,0 +1,102 @@
+--1
+create or replace FUNCTION CURSO_ACTUAL RETURN VARCHAR2 AS
+    RES VARCHAR2(20);
+    AYO VARCHAR(20);
+BEGIN 
+    AYO := TO_CHAR(SYSDATE, 'YY') ;
+    IF TO_DATE(TO_CHAR(SYSDATE,'DD/MM'),'DD/MM') < TO_DATE('05/10','DD/MM') THEN
+        RES:= TO_CHAR(AYO-1) ||'/' || AYO;
+    ELSE
+         RES:= AYO ||'/' ||TO_CHAR( AYO+1);
+         
+    END IF;
+    dbms_output.put_line(RES);
+    RETURN RES;
+END;
+/
+/*
+-- TEST
+select CURSO_ACTUAL() from dual;
+*/
+
+--2.
+create or replace FUNCTION OBTEN_GRUPO_ID (TTitulacion VARCHAR2, TCurso Number, TLetra VARCHAR2) RETURN VARCHAR2 AS
+    RES VARCHAR2(10);
+    COD_TITU NUMBER;
+    
+BEGIN
+    SELECT CODIGO INTO COD_TITU from TITU where NOMBRE LIKE TTitulacion;
+    SELECT ID INTO RES FROM GRUPO WHERE COD_TITU = TITU_CODIGO AND TCURSO = CURSO AND TLETRA LIKE LETRA;
+    RETURN RES;
+END;
+/
+
+/*
+-- TEST
+SELECT OBTEN_GRUPO_ID('Grado en Ingenier韆 Inform醫ica',2,'A') FROM DUAL;
+*/
+
+--3.
+CREATE GLOBAL TEMPORARY TABLE "SECRETARIA"."TEMP_ASIGNATURAS" 
+ ( "CODIGO" NUMBER, GRUPO VARCHAR2(10)
+ ) ON COMMIT DELETE ROWS ;
+ 
+--4.
+CREATE OR REPLACE PROCEDURE NORMALIZA_ASIGNATURAS (PCADENA IN VARCHAR2,TITULACION NUMBER DEFAULT NULL) AS
+CODIGO_ASIG VARCHAR2(20);
+NOMBRETITU VARCHAR2(100);
+GRUPO VARCHAR2(20);
+LETRA VARCHAR2(20);
+CURSOR C_CODIGOASIG IS select regexp_substr(PCADENA,'[^,]+', 1, level) "INFO" from dual
+connect by regexp_substr(PCADENA, '[^,]+', 1, level) is not null;
+BEGIN
+    FOR VAR_CODIGO IN C_CODIGOASIG LOOP
+        CODIGO_ASIG := SUBSTR(VAR_CODIGO.INFO,1,3);
+        SELECT NOMBRE INTO NOMBRETITU FROM TITU WHERE CODIGO = TITULACION;
+        letra:=substr(VAR_CODIGO.INFO,5,5);
+        if(letra is not null)then
+        GRUPO:= OBTEN_GRUPO_ID(NOMBRETITU,substr(CODIGO_ASIG,1,1),letra);
+        else
+        GRUPO:=null;
+        end if;
+        INSERT INTO "SECRETARIA"."TEMP_ASIGNATURAS" VALUES (CODIGO_ASIG,GRUPO);
+    END LOOP;
+
+END;
+/
+
+/*
+-- TEST
+EXECUTE NORMALIZA_ASIGNATURAS('101-A,102-A,105-A,202-B,205-A',1041);
+SELECT * FROM TEMP_ASIGNATURAS;
+*/
+
+--5.
+create or replace procedure RELLENA_ASIG_MATRICULA
+AS
+refer number;
+curso Varchar2(20);
+grupo Varchar2(20);
+exp number;
+titu number;
+cursor c_calumnos is SELECT GRUPOS_ASIGNADOS, NUM_EXPEDIENTE FROM ALUMNO;
+cursor c_cgrupos is SELECT codigo, grupo FROM temp_asignaturas;
+BEGIN
+    FOR Var_asignaturas IN c_calumnos LOOP
+        exp := Var_asignaturas.NUM_EXPEDIENTE;
+        titu := TO_NUMBER(substr(to_char(exp),1, 4));
+        NORMALIZA_ASIGNATURAS(Var_asignaturas.grupos_asignados, titu);
+        FOR Var_codigo IN c_cgrupos LOOP
+            --dbms_output.put_line('print something') ;
+            select referencia into refer from asig where codigo_1= Var_codigo.codigo and titu_codigo=titu;
+            curso := curso_actual;
+            insert into ASIG_MATR (MATR_CURSO, MATR_EXP_NUM, ASIG_REFERENCIA, GRUPO_ID) values (curso, exp, refer, Var_codigo.grupo);
+        END LOOP;
+    END LOOP;
+END RELLENA_ASIG_MATRICULA;
+/
+/*
+-- TEST
+EXECUTE RELLENA_ASIG_MATRICULA ;
+select * from asig_matr;
+*/
