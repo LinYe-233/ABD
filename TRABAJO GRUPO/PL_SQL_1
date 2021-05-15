@@ -79,7 +79,7 @@ curso Varchar2(20);
 grupo Varchar2(20);
 exp number;
 titu number;
-cursor c_calumnos is SELECT GRUPOS_ASIGNADOS, NUM_EXPEDIENTE FROM ALUMNO;
+cursor c_calumnos is SELECT GRUPOS_ASIGNADOS, NUM_EXPEDIENTE FROM ALUMNOS_EXT;
 cursor c_cgrupos is SELECT codigo, grupo FROM temp_asignaturas;
 BEGIN
     FOR Var_asignaturas IN c_calumnos LOOP
@@ -100,3 +100,4 @@ END RELLENA_ASIG_MATRICULA;
 EXECUTE RELLENA_ASIG_MATRICULA ;
 select * from asig_matr;
 */
+COMMIT;
